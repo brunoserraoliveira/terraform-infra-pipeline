@@ -51,8 +51,14 @@ jobs:
                 -backend-config="region=${{ inputs.aws-region }}" \
                 -backend-config="dynamodb_table=${{ inputs.aws-lock-dynamodb-table }}"
 
+            - name: Select or Create Terraform Workspace
+              run: |
+               cd infra && terraform workspace select dev || terraform workspace new dev
+
+
             - name: Terraform Validate
-              run: terraform validate
+              run: 
+                cd infra && terraform validate
 
             - name: Terraform Plan
               
