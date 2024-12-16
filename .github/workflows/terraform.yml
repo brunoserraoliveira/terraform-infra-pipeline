@@ -43,33 +43,42 @@ jobs:
                 role-session-name: GitHub_to_AWS_via_FederatedOIDC
                 aws-region: ${{ inputs.aws-region }}
 
+            - name: Terraform Destroy
+              if: steps.read-destroy-config.outputs.destroy == 'true'
+              id: terraform-destroy
+              run: |
+                cd infra &&
+                terraform workspace select ${{ inputs.environment }} || terraform workspace new ${{ inputs.environment }} &&
+                terraform destroy -var-file="./envs/${{ inputs.environment }}/terraform.tfvars" -auto-approve
+            
             - name: Terraform Init
               run: |
-               cd infra && terraform init \
-                -backend-config="bucket=${{ inputs.aws-statefile-s3-bucket }}" \
-                -backend-config="key=${{ github.event.repository.name }}" \
-                -backend-config="region=${{ inputs.aws-region }}" \
-                -backend-config="dynamodb_table=${{ inputs.aws-lock-dynamodb-table }}"
-
+                cd infra && terraform init \
+                  -backend-config="bucket=${{ inputs.aws-statefile-s3-bucket }}" \
+                  -backend-config="key=${{ github.event.repository.name }}" \
+                  -backend-config="region=${{ inputs.aws-region }}" \
+                  -backend-config="dynamodb_table=${{ inputs.aws-lock-dynamodb-table }}"
+            
             - name: Select or Create Terraform Workspace
               run: |
-               cd infra && terraform workspace select dev || terraform workspace new dev
-
-
+                cd infra && terraform workspace select ${{ inputs.environment }} || terraform workspace new ${{ inputs.environment }}
+            
             - name: Terraform Validate
-              run: 
+              run: |
                 cd infra && terraform validate
-
+            
             - name: Terraform Plan
-              
+              if: steps.read-destroy-config.outputs.destroy != 'true'
               id: terraform-plan
-              run: cd infra &&
-               terraform workspace select ${{ inputs.environment }} || terraform workspace new ${{ inputs.environment }} &&
-               terraform plan -var-file="./envs/${{ inputs.environment }}/terraform.tfvars" -out="${{ inputs.environment }}.plan"
+              run: |
+                cd infra &&
+                terraform workspace select ${{ inputs.environment }} || terraform workspace new ${{ inputs.environment }} &&
+                terraform plan -var-file="./envs/${{ inputs.environment }}/terraform.tfvars" -out="${{ inputs.environment }}.plan"
             
             - name: Terraform Apply
-                   
+              if: steps.read-destroy-config.outputs.destroy != 'true'
               id: terraform-apply
-              run: cd infra &&
+              run: |
+                cd infra &&
                 terraform workspace select ${{ inputs.environment }} || terraform workspace new ${{ inputs.environment }} &&
                 terraform apply "${{ inputs.environment }}.plan"
